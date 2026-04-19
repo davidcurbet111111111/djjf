@@ -1,0 +1,87 @@
+name: Temp Email (Mail.tm Node)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mail:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Create Node Script
+        run: |
+          cat << 'EOF' > mail.js
+          const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+          const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+          const main = async () => {
+            // Get available domain
+            const domainRes = await fetch("https://api.mail.tm/domains");
+            const domainData = await domainRes.json();
+            const domain = domainData["hydra:member"][0].domain;
+
+            // Generate email
+            const user = "user" + Math.floor(Math.random() * 10000);
+            const email = user + "@" + domain;
+            const password = "pass123456";
+
+            console.log("📧 your temporary email address is:", email);
+
+            // Create account
+            await fetch("https://api.mail.tm/accounts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ address: email, password })
+            });
+
+            // Login
+            const tokenRes = await fetch("https://api.mail.tm/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ address: email, password })
+            });
+
+            const tokenData = await tokenRes.json();
+            const token = tokenData.token;
+
+            console.log("🔐 Logged in. Checking inbox every 5 seconds...\n");
+
+            // Loop: check inbox every 5 seconds
+            while (true) {
+              const res = await fetch("https://api.mail.tm/messages", {
+                headers: { Authorization: "Bearer " + token }
+              });
+
+              const data = await res.json();
+              const messages = data["hydra:member"];
+
+              if (messages.length > 0) {
+                console.log("📨 New messages:");
+                for (const msg of messages) {
+                  console.log("From:", msg.from.address);
+                  console.log("Subject:", msg.subject);
+                  console.log("Intro:", msg.intro);
+                  console.log("----------------------");
+                }
+              } else {
+                console.log("⏳ No messages yet...");
+              }
+
+              await sleep(5000);
+            }
+          };
+
+          main();
+          EOF
+
+      - name: Install dependency
+        run: npm install node-fetch@3
+
+      - name: Run script
+        run: node mail.js
