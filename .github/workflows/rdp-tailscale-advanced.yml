@@ -1,0 +1,88 @@
+name: Windows RDP (Multi-OS + Tailscale Advanced)
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: "Select Windows OS"
+        required: true
+        default: "windows-2022"
+        type: choice
+        options:
+          - windows-2019
+          - windows-2022
+
+      disk:
+        description: "Boot Disk Description (label only)"
+        required: false
+        default: "Standard Disk"
+
+      version:
+        description: "Windows Version (label)"
+        required: false
+        default: "Windows Server"
+
+      tailscale_key:
+        description: "Enter your Tailscale Auth Key"
+        required: true
+
+jobs:
+  rdp:
+    runs-on: ${{ inputs.os }}
+
+    steps:
+      - name: Generate Username & Password (20 chars)
+        shell: pwsh
+        run: |
+          $user = "user" + (Get-Random -Minimum 1000 -Maximum 9999)
+          $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+          $pass = -join ((1..20) | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
+
+          echo "USERNAME=$user" >> $env:GITHUB_ENV
+          echo "PASSWORD=$pass" >> $env:GITHUB_ENV
+
+      - name: Show Configuration
+        run: |
+          echo "=========================="
+          echo "OS: ${{ inputs.os }}"
+          echo "Boot Disk: ${{ inputs.disk }}"
+          echo "Version: ${{ inputs.version }}"
+          echo "=========================="
+
+      - name: Enable RDP
+        run: |
+          net user %USERNAME% %PASSWORD% /add
+          net localgroup administrators %USERNAME% /add
+
+          reg add "HKLM\System\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+
+          netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+
+      - name: Install Tailscale
+        run: |
+          choco install tailscale -y
+
+      - name: Start Tailscale
+        run: |
+          tailscale up --authkey=${{ inputs.tailscale_key }} --hostname=github-rdp
+
+      - name: Get Tailscale IP
+        id: ts
+        run: |
+          for /f "delims=" %%i in ('tailscale ip -4') do set TSIP=%%i
+          echo TSIP=%TSIP%>>%GITHUB_ENV%
+
+      - name: Show RDP Access
+        run: |
+          echo "=========================="
+          echo "🖥️ RDP IS RUNNING"
+          echo "IP: %TSIP%"
+          echo "PORT: 3389"
+          echo "USERNAME: %USERNAME%"
+          echo "PASSWORD: %PASSWORD%"
+          echo "=========================="
+          echo "🛑 To stop: Cancel workflow in GitHub"
+          echo "=========================="
+
+      - name: Keep Alive
+        run: timeout 6h
