@@ -1,0 +1,47 @@
+name: ADB Pair & Connect
+
+on:
+  workflow_dispatch:
+    inputs:
+      pair_ip:
+        description: "ADB Pair IP address (e.g. 192.168.1.100)"
+        required: true
+      pair_port:
+        description: "ADB Pairing port (from Wireless Debugging)"
+        required: true
+      pair_code:
+        description: "ADB Pairing code"
+        required: true
+      connect_ip:
+        description: "ADB Connect IP address"
+        required: true
+      connect_port:
+        description: "ADB Connect port (usually 5555)"
+        required: true
+        default: "5555"
+
+jobs:
+  adb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧰 Install ADB
+        run: |
+          sudo apt update
+          sudo apt install -y android-tools-adb
+
+      - name: 📦 Check ADB
+        run: adb version
+
+      - name: 🔐 Pair ADB device
+        run: |
+          echo "Pairing to ${{ github.event.inputs.pair_ip }}:${{ github.event.inputs.pair_port }}"
+          echo "${{ github.event.inputs.pair_code }}" | adb pair ${{ github.event.inputs.pair_ip }}:${{ github.event.inputs.pair_port }}
+
+      - name: 🔌 Connect ADB
+        run: |
+          echo "Connecting to ${{ github.event.inputs.connect_ip }}:${{ github.event.inputs.connect_port }}"
+          adb connect ${{ github.event.inputs.connect_ip }}:${{ github.event.inputs.connect_port }}
+
+      - name: 📱 List devices
+        run: adb devices
