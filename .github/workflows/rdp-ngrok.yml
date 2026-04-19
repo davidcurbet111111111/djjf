@@ -1,0 +1,89 @@
+name: Windows RDP (Multi-OS + ngrok)
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: "Select Windows OS"
+        required: true
+        default: "windows-2022"
+        type: choice
+        options:
+          - windows-2019
+          - windows-2022
+
+      disk:
+        description: "Boot Disk Description (label only)"
+        required: false
+        default: "Standard Disk"
+
+      version:
+        description: "Windows Version (label)"
+        required: false
+        default: "Windows Server"
+
+      ngrok_token:
+        description: "Enter your ngrok authtoken"
+        required: true
+
+jobs:
+  rdp:
+    runs-on: ${{ inputs.os }}
+
+    steps:
+      - name: Generate Username & Password (20 chars)
+        shell: pwsh
+        run: |
+          $user = "user" + (Get-Random -Minimum 1000 -Maximum 9999)
+          $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+          $pass = -join ((1..20) | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
+
+          echo "USERNAME=$user" >> $env:GITHUB_ENV
+          echo "PASSWORD=$pass" >> $env:GITHUB_ENV
+
+      - name: Show Configuration
+        run: |
+          echo "=========================="
+          echo "OS: ${{ inputs.os }}"
+          echo "Boot Disk: ${{ inputs.disk }}"
+          echo "Version: ${{ inputs.version }}"
+          echo "=========================="
+
+      - name: Enable RDP
+        run: |
+          net user %USERNAME% %PASSWORD% /add
+          net localgroup administrators %USERNAME% /add
+
+          reg add "HKLM\System\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+
+          netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+
+      - name: Download ngrok
+        run: |
+          curl -Lo ngrok.zip https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip
+          tar -xf ngrok.zip
+
+      - name: Start ngrok tunnel
+        run: |
+          ngrok.exe authtoken ${{ inputs.ngrok_token }}
+          start ngrok.exe tcp 3389
+
+      - name: Get ngrok address
+        run: |
+          timeout /t 10
+          curl http://127.0.0.1:4040/api/tunnels
+
+      - name: Show RDP Access
+        run: |
+          echo "=========================="
+          echo "🖥️ RDP IS RUNNING"
+          echo "Check ngrok output above for TCP address"
+          echo "PORT: 3389"
+          echo "USERNAME: %USERNAME%"
+          echo "PASSWORD: %PASSWORD%"
+          echo "=========================="
+          echo "🛑 To stop: Cancel workflow on GitHub"
+          echo "=========================="
+
+      - name: Keep Alive
+        run: timeout 6h
