@@ -65,8 +65,8 @@ jobs:
 
       - name: Start ngrok tunnel
         run: |
-          ngrok.exe authtoken ${{ inputs.ngrok_token }}
-          start ngrok.exe tcp 3389
+          ./ngrok.exe authtoken ${{ inputs.ngrok_token }}
+          start ./ngrok.exe tcp 3389
 
       - name: Get ngrok address
         run: |
