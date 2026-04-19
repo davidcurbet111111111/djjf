@@ -1,0 +1,23 @@
+name: Generate PIN via CMD
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pin:
+    runs-on: windows-latest
+
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v4
+
+      - name: ▶️ Run pin.bat using cmd /c
+        shell: cmd
+        run: |
+          cmd /c pin.bat
+
+      - name: 🔁 Generate another PIN (inline)
+        shell: cmd
+        run: |
+          set /a pin=%random% %% 9000 + 1000
+          echo Another PIN: %pin%
