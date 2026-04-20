@@ -45,7 +45,7 @@ jobs:
       - name: 🚀 Connect OpenVPN
         run: |
           sudo openvpn --config "${{ github.event.inputs.ovpn_file }}" --auth-user-pass auth.txt --daemon
-          sleep 15
+          sleep 1
 
       - name: 🌐 Check public IP
         run: |
