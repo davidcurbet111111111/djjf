@@ -1,0 +1,120 @@
+name: Twilio Buy Number + SMS Logs (no jq)
+
+on:
+  workflow_dispatch:
+    inputs:
+      area_code:
+        description: "Enter US area code (e.g. 415)"
+        required: true
+      account_sid:
+        description: "Enter your Twilio Account SID"
+        required: true
+      auth_token:
+        description: "Enter your Twilio Auth Token"
+        required: true
+
+jobs:
+  twilio:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔎 Search available number
+        id: search
+        run: |
+          SID="${{ github.event.inputs.account_sid }}"
+          TOKEN="${{ github.event.inputs.auth_token }}"
+          AREA="${{ github.event.inputs.area_code }}"
+
+          echo "Searching numbers for area code $AREA..."
+
+          RESP=$(curl -s -u "$SID:$TOKEN" \
+            "https://api.twilio.com/2010-04-01/Accounts/$SID/AvailablePhoneNumbers/US/Local.json?AreaCode=$AREA&PageSize=5")
+
+          echo "$RESP" > search.json
+
+          NUMBER=$(echo "$RESP" \
+            | grep -o '"phone_number": *"[^"]*"' \
+            | head -n1 \
+            | cut -d':' -f2 \
+            | sed 's/[", ]//g')
+
+          echo "Selected number: $NUMBER"
+
+          if [ -z "$NUMBER" ]; then
+            echo "❌ No number found"
+            exit 1
+          fi
+
+          echo "number=$NUMBER" >> $GITHUB_OUTPUT
+
+      - name: 💳 Purchase number
+        run: |
+          SID="${{ github.event.inputs.account_sid }}"
+          TOKEN="${{ github.event.inputs.auth_token }}"
+          NUMBER="${{ steps.search.outputs.number }}"
+
+          echo "Purchasing $NUMBER..."
+
+          BUY_RESP=$(curl -s -u "$SID:$TOKEN" \
+            -X POST "https://api.twilio.com/2010-04-01/Accounts/$SID/IncomingPhoneNumbers.json" \
+            --data-urlencode "PhoneNumber=$NUMBER")
+
+          echo "$BUY_RESP" > buy.json
+
+          PN_SID=$(echo "$BUY_RESP" \
+            | grep -o '"sid": *"PN[^"]*"' \
+            | head -n1 \
+            | cut -d':' -f2 \
+            | sed 's/[", ]//g')
+
+          echo "Purchased Phone SID: $PN_SID"
+
+      - name: 📞 View my Twilio phone numbers
+        run: |
+          SID="${{ github.event.inputs.account_sid }}"
+          TOKEN="${{ github.event.inputs.auth_token }}"
+
+          echo "Your Twilio phone numbers:"
+          curl -s -u "$SID:$TOKEN" \
+            "https://api.twilio.com/2010-04-01/Accounts/$SID/IncomingPhoneNumbers.json?PageSize=10" \
+            | grep -o '"phone_number": *"[^"]*"' \
+            | sed 's/"phone_number": "//; s/"//'
+
+      - name: ⏱ Wait 5 seconds
+        run: |
+          echo "Waiting 5 seconds..."
+          sleep 5
+
+      - name: 📩 View recent SMS logs (after 5s)
+        run: |
+          SID="${{ github.event.inputs.account_sid }}"
+          TOKEN="${{ github.event.inputs.auth_token }}"
+
+          echo "Recent SMS logs (5s):"
+          RESP=$(curl -s -u "$SID:$TOKEN" \
+            "https://api.twilio.com/2010-04-01/Accounts/$SID/Messages.json?PageSize=5")
+
+          echo "$RESP" \
+            | grep -o '"from": *"[^"]*"\|"to": *"[^"]*"\|"body": *"[^"]*"\|"date_sent": *"[^"]*"' \
+            | sed 's/"from": /FROM: /; s/"to": /TO: /; s/"body": /MSG: /; s/"date_sent": /DATE: /'
+
+      - name: ⏱ Wait 15 minutes
+        run: |
+          echo "Waiting 15 minutes..."
+          sleep 15
+
+      - name: 📩 View SMS logs history (after 15 min)
+        run: |
+          SID="${{ github.event.inputs.account_sid }}"
+          TOKEN="${{ github.event.inputs.auth_token }}"
+
+          echo "SMS logs history (15 min):"
+          RESP=$(curl -s -u "$SID:$TOKEN" \
+            "https://api.twilio.com/2010-04-01/Accounts/$SID/Messages.json?PageSize=10")
+
+          echo "$RESP" \
+            | grep -o '"from": *"[^"]*"\|"to": *"[^"]*"\|"body": *"[^"]*"\|"date_sent": *"[^"]*"' \
+            | sed 's/"from": /FROM: /; s/"to": /TO: /; s/"body": /MSG: /; s/"date_sent": /DATE: /'
