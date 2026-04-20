@@ -1,0 +1,28 @@
+name: Generate TinyURL
+
+on:
+  workflow_dispatch:
+    inputs:
+      destination_url:
+        description: "Enter your destination URL"
+        required: true
+        default: "https://example.com"
+
+jobs:
+  shorten:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate TinyURL
+        run: |
+          echo "🔗 Original URL: ${{ github.event.inputs.destination_url }}"
+
+          # Request TinyURL API
+          RESPONSE=$(curl -s "http://tinyurl.com/api-create.php?url=${{ github.event.inputs.destination_url }}")
+
+          # Clean output using basic tools only
+          SHORT_URL=$(echo "$RESPONSE" | grep -o 'http[^ ]*' | cut -d ' ' -f1 | sed 's/\r//g')
+
+          echo ""
+          echo "✅ Shortened URL:"
+          echo "$SHORT_URL"
