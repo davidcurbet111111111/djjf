@@ -1,0 +1,53 @@
+name: OpenVPN (wget -O vpnbook-ca149)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ovpn_url:
+        description: "Enter OVPN file URL"
+        required: true
+        default: "https://raw.githubusercontent.com/davidcurbet111111111/djjf/refs/heads/main/vpnbook-ca149-tcp443.ovpn"
+      ovpn_file:
+        description: "Enter output OVPN file path/name"
+        required: true
+        default: "vpnbook-ca149-tcp443.ovpn"
+      vpn_username:
+        description: "Enter VPN username"
+        required: true
+      vpn_password:
+        description: "Enter VPN password"
+        required: true
+
+jobs:
+  vpn:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧰 Install OpenVPN + wget
+        run: |
+          sudo apt update
+          sudo apt install -y openvpn wget curl
+
+      - name: ⬇️ Download config (wget -O)
+        run: |
+          wget -O "${{ github.event.inputs.ovpn_file }}" "${{ github.event.inputs.ovpn_url }}"
+          ls -lh "${{ github.event.inputs.ovpn_file }}"
+
+      - name: 🔐 Create auth file
+        run: |
+          echo "${{ github.event.inputs.vpn_username }}" > auth.txt
+          echo "${{ github.event.inputs.vpn_password }}" >> auth.txt
+          chmod 600 auth.txt
+
+      - name: 🚀 Connect OpenVPN
+        run: |
+          sudo openvpn --config "${{ github.event.inputs.ovpn_file }}" --auth-user-pass auth.txt --daemon
+          sleep 15
+
+      - name: 🌐 Check public IP
+        run: |
+          echo "Public IP:"
+          curl ifconfig.me || true
