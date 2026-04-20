@@ -1,0 +1,95 @@
+name: Kixie Buy Number + SMS Logs (no jq)
+
+on:
+  workflow_dispatch:
+    inputs:
+      area_code:
+        description: "Enter US area code (e.g. 415)"
+        required: true
+      api_key:
+        description: "Enter your Kixie API key"
+        required: true
+
+jobs:
+  kixie:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔎 Search available numbers
+        id: search
+        run: |
+          API="${{ github.event.inputs.api_key }}"
+          AREA="${{ github.event.inputs.area_code }}"
+
+          echo "Searching numbers for area code $AREA..."
+
+          RESP=$(curl -s -H "Authorization: Bearer $API" \
+            "https://api.kixie.com/v1/numbers/available?area_code=$AREA")
+
+          echo "$RESP" > search.json
+
+          NUMBER=$(echo "$RESP" \
+            | grep -o '"number": *"[^"]*"' \
+            | head -n1 \
+            | cut -d':' -f2 \
+            | sed 's/[", ]//g')
+
+          echo "Selected number: $NUMBER"
+
+          if [ -z "$NUMBER" ]; then
+            echo "❌ No number found"
+            exit 1
+          fi
+
+          echo "number=$NUMBER" >> $GITHUB_OUTPUT
+
+      - name: 💳 Buy number
+        run: |
+          API="${{ github.event.inputs.api_key }}"
+          NUMBER="${{ steps.search.outputs.number }}"
+
+          echo "Buying $NUMBER..."
+
+          BUY_RESP=$(curl -s -X POST \
+            -H "Authorization: Bearer $API" \
+            -H "Content-Type: application/json" \
+            -d "{\"number\":\"$NUMBER\"}" \
+            "https://api.kixie.com/v1/numbers")
+
+          echo "$BUY_RESP" > buy.json
+
+          ID=$(echo "$BUY_RESP" \
+            | grep -o '"id": *"[^"]*"' \
+            | head -n1 \
+            | cut -d':' -f2 \
+            | sed 's/[", ]//g')
+
+          echo "Purchased ID: $ID"
+
+      - name: 📞 View my numbers
+        run: |
+          API="${{ github.event.inputs.api_key }}"
+
+          echo "Your Kixie phone numbers:"
+          curl -s -H "Authorization: Bearer $API" \
+            "https://api.kixie.com/v1/numbers" \
+            | grep -o '"number": *"[^"]*"' \
+            | sed 's/"number": "//; s/"//'
+
+      - name: ⏱ Wait 5 seconds
+        run: sleep 15
+
+      - name: 📩 View recent SMS logs
+        run: |
+          API="${{ github.event.inputs.api_key }}"
+
+          echo "Recent SMS logs:"
+          RESP=$(curl -s -H "Authorization: Bearer $API" \
+            "https://api.kixie.com/v1/sms?limit=5")
+
+          echo "$RESP" \
+            | grep -o '"from": *"[^"]*"\|"to": *"[^"]*"\|"body": *"[^"]*"' \
+            | sed 's/"from": /FROM: /; s/"to": /TO: /; s/"body": /MSG: /'
