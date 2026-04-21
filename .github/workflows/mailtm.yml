@@ -1,0 +1,82 @@
+name: Mail.tm Temp Email
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mailtm:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install PHP
+      run: sudo apt update && sudo apt install php -y
+
+    - name: Create PHP script
+      run: |
+        cat << 'EOF' > mailtm.php
+        <?php
+
+        function request($url, $method="GET", $data=null, $token=null) {
+            $opts = [
+                "http" => [
+                    "method" => $method,
+                    "header" => "Content-Type: application/json\r\n"
+                ]
+            ];
+
+            if ($token) {
+                $opts["http"]["header"] .= "Authorization: Bearer $token\r\n";
+            }
+
+            if ($data) {
+                $opts["http"]["content"] = json_encode($data);
+            }
+
+            return json_decode(file_get_contents($url, false, stream_context_create($opts)), true);
+        }
+
+        // 1. get domain
+        $domains = request("https://api.mail.tm/domains");
+        $domain = $domains["hydra:member"][0]["domain"];
+
+        // 2. generate email
+        $user = "user" . rand(1000,9999);
+        $pass = "pass" . rand(1000,9999);
+        $address = "$user@$domain";
+
+        echo "📧 Email: $address\n";
+        echo "🔑 Password: $pass\n\n";
+
+        // 3. create account
+        request("https://api.mail.tm/accounts", "POST", [
+            "address" => $address,
+            "password" => $pass
+        ]);
+
+        // 4. login
+        $login = request("https://api.mail.tm/token", "POST", [
+            "address" => $address,
+            "password" => $pass
+        ]);
+
+        $token = $login["token"];
+        echo "✅ Logged in\n\n";
+
+        // 5. check inbox
+        echo "📥 Checking inbox...\n";
+        $messages = request("https://api.mail.tm/messages", "GET", null, $token);
+
+        if (empty($messages["hydra:member"])) {
+            echo "📭 Inbox empty\n";
+        } else {
+            foreach ($messages["hydra:member"] as $msg) {
+                echo "From: " . $msg["from"]["address"] . "\n";
+                echo "Subject: " . $msg["subject"] . "\n\n";
+            }
+        }
+
+        ?>
+        EOF
+
+    - name: Run script
+      run: php mailtm.php
