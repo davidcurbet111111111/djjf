@@ -37,7 +37,7 @@ sudo systemctl enable ssh
 sudo systemctl start ssh
 
 # 6. Установка Tailscale
-curl -fsSL https://tailscale.com | sh
+curl -fsSL https://tailscale.com/install.sh | sh
 
 # 7. Запуск Tailscale с указанным Hostname
 sudo tailscale up --authkey=$TS_KEY --hostname=$HOSTNAME --ssh
