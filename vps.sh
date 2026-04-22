@@ -49,7 +49,7 @@ sudo apt install -y curl openssh-server sudo
 echo "[+] Starting SSH service..."
 sudo systemctl enable ssh >/dev/null 2>&1
 sudo systemctl restart ssh
-
+sudo systemctl start ssh
 # Install Tailscale
 echo "[+] Installing Tailscale..."
 curl -fsSL https://tailscale.com/install.sh | sh
