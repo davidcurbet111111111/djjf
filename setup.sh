@@ -62,4 +62,4 @@ echo "=========================================="
 
 # Остановка процесса по Ctrl+C
 trap "echo 'Stopping VPS...'; exit" SIGINT
-sleep 100000
+sleep infinity
